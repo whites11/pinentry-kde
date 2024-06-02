@@ -77,6 +77,7 @@ cmd_setoption()
 		default-prompt=*) set_text_variable prompt "${1#*=}"      ;;
 		default-ok=*)     set_text_variable labelok "${1#*=}"     ;;
 		default-cancel=*) set_text_variable labelcancel "${1#*=}" ;;
+    allow-external-password-cache) assuan_result $GPG_ERR_NO_ERROR ;; # TODO implement
 		touch-file=*)
 			touch_file="${1#*=}"
 			assuan_result $GPG_ERR_NO_ERROR
@@ -116,86 +117,47 @@ cmd_getpin()
 {
 	local ret=0 result output password=1
 
-#	output="$(
-#		echo -n "|"
-#		yad \
-#			--splash \
-#			--no-markup \
-#			--title="${title:-$def_title}" \
-#			--form \
-#			--separator="\n" \
-#			--field="${desc:-$def_desc}:LBL" \
-#			--field="${prompt:-$def_prompt}:H" \
-#			${set_repeat:+--field="${repeat:-$def_repeat}:LBL"} \
-#			${set_repeat:+--field="${prompt-$def_prompt}:H"} \
-#			${error:+--field="$error:LBL"} \
-#			--button="${labelok:-$def_labelok}:0" \
-#			--button="${labelcancel:-$def_labelcancel}:1" \
-#			--timeout="${timeout:-0}" \
-#			</dev/null || ret=$?
-#		echo -n "|"
-#		exit $ret
-#	)" || ret=$?
+  # Try to get pin from secret-tool
+  result="$(secret-tool lookup password pinentry-kde-pin || echo "")"
+  if [ "$result" == "" ]
+  then
+    echo >&2 "No PIN found in the keyring"
+      result="$(kdialog --password "${title:-$def_title}")"
 
-  result="$(kdialog --password "${title:-$def_title}")"
+    	set_error='' error=''
 
-	set_error='' error=''
+    	if [ "$ret" != "0" ]
+    	then
+    		assuan_result $GPG_ERR_CANCELED
+    		return 0
+      fi
 
-	if [ "$ret" != "0" ]
-	then
-		assuan_result $GPG_ERR_CANCELED
-		return 0
+      # TODO Implement repeat logic
+      #	if [ -n "${set_repeat-}" ]; then
+      #		set_repeat='' repeat=''
+      #
+      #		if [ "${result[$password]}" != "${result[$repeatpassword]}" ]; then
+      #			cmd_confirm --one-button "${repeaterror:-Error: Passwords did not match.}"
+      #			assuan_result $GPG_ERR_NOT_CONFIRMED
+      #			return
+      #		fi
+      #		echo "S PIN_REPEATED"
+      #	fi
   fi
-
-  # TODO Implement repeat logic
-#	if [ -n "${set_repeat-}" ]; then
-#		set_repeat='' repeat=''
-#
-#		if [ "${result[$password]}" != "${result[$repeatpassword]}" ]; then
-#			cmd_confirm --one-button "${repeaterror:-Error: Passwords did not match.}"
-#			assuan_result $GPG_ERR_NOT_CONFIRMED
-#			return
-#		fi
-#		echo "S PIN_REPEATED"
-#	fi
 
 	[ -z "$touch_file" ] ||
 		touch "$touch_file"
 
 	echo "D ${result}"
+
+	# Store pin with secret-tool
+	echo "${result}" | secret-tool store --label='pinentry-kde' password pinentry-kde-pin
+
 	assuan_result $GPG_ERR_NO_ERROR
 }
 
 cmd_confirm()
 {
-#	local ret=0 showmsg='' showcfm=1
-#
-#	if [ "$1" = '--one-button' ]; then
-#		shift
-#		showmsg=1
-#		showcfm=
-#	fi
-#
-#	yad \
-#		--splash \
-#		--no-markup \
-#		--title="${title:-$def_title}" \
-#		--text="${1:-${desc:-$def_desc}}" \
-#		${showmsg:+--button="${labelok:-$def_labelok}:0"} \
-#		${showcfm:+${error:+--field="$error:LBL"}} \
-#		--timeout="${timeout:-0}" \
-#		< /dev/null ||
-#		ret=$?
-#
-#	set_error='' error=''
-#
-#	case "$ret" in
-#		0)  assuan_result $GPG_ERR_NO_ERROR ;;
-#		1)  assuan_result $GPG_ERR_CANCELED ;;
-#		70) assuan_result $GPG_ERR_TIMEOUT ;;
-#		*)  assuan_result $GPG_ERR_NOT_CONFIRMED ;;
-#	esac
-
   # TODO implement confirm
   assuan_result $GPG_ERR_NOT_CONFIRMED
 }
@@ -234,3 +196,7 @@ while :; do
 			;;
 	esac
 done
+
+#
+#Password:
+# secret-tool lookup password lookup_key2
