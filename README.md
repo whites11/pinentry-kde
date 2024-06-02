@@ -1,0 +1,1 @@
+# pinentry-kde
