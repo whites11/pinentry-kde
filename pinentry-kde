@@ -114,89 +114,90 @@ cmd_getinfo()
 
 cmd_getpin()
 {
-	local ret=0 result output password=1 repeatpassword=3
+	local ret=0 result output password=1
 
-	output="$(
-		echo -n "|"
-		yad \
-			--splash \
-			--no-markup \
-			--title="${title:-$def_title}" \
-			--form \
-			--separator="\n" \
-			--field="${desc:-$def_desc}:LBL" \
-			--field="${prompt:-$def_prompt}:H" \
-			${set_repeat:+--field="${repeat:-$def_repeat}:LBL"} \
-			${set_repeat:+--field="${prompt-$def_prompt}:H"} \
-			${error:+--field="$error:LBL"} \
-			--button="${labelok:-$def_labelok}:0" \
-			--button="${labelcancel:-$def_labelcancel}:1" \
-			--timeout="${timeout:-0}" \
-			</dev/null || ret=$?
-		echo -n "|"
-		exit $ret
-	)" || ret=$?
+#	output="$(
+#		echo -n "|"
+#		yad \
+#			--splash \
+#			--no-markup \
+#			--title="${title:-$def_title}" \
+#			--form \
+#			--separator="\n" \
+#			--field="${desc:-$def_desc}:LBL" \
+#			--field="${prompt:-$def_prompt}:H" \
+#			${set_repeat:+--field="${repeat:-$def_repeat}:LBL"} \
+#			${set_repeat:+--field="${prompt-$def_prompt}:H"} \
+#			${error:+--field="$error:LBL"} \
+#			--button="${labelok:-$def_labelok}:0" \
+#			--button="${labelcancel:-$def_labelcancel}:1" \
+#			--timeout="${timeout:-0}" \
+#			</dev/null || ret=$?
+#		echo -n "|"
+#		exit $ret
+#	)" || ret=$?
+
+  result="$(kdialog --password "${title:-$def_title}")"
 
 	set_error='' error=''
 
-	case "$ret" in
-		1)  assuan_result $GPG_ERR_CANCELED; return 0; ;;
-		70) assuan_result $GPG_ERR_TIMEOUT;  return 0; ;;
-	esac
+	if [ "$ret" != "0" ]
+	then
+		assuan_result $GPG_ERR_CANCELED
+		return 0
+  fi
 
-	output="${output#|}"
-	output="${output%|}"
-
-	readarray -t result <<<"$output"
-	output=''
-
-	if [ -n "${set_repeat-}" ]; then
-		set_repeat='' repeat=''
-
-		if [ "${result[$password]}" != "${result[$repeatpassword]}" ]; then
-			cmd_confirm --one-button "${repeaterror:-Error: Passwords did not match.}"
-			assuan_result $GPG_ERR_NOT_CONFIRMED
-			return
-		fi
-		echo "S PIN_REPEATED"
-	fi
+  # TODO Implement repeat logic
+#	if [ -n "${set_repeat-}" ]; then
+#		set_repeat='' repeat=''
+#
+#		if [ "${result[$password]}" != "${result[$repeatpassword]}" ]; then
+#			cmd_confirm --one-button "${repeaterror:-Error: Passwords did not match.}"
+#			assuan_result $GPG_ERR_NOT_CONFIRMED
+#			return
+#		fi
+#		echo "S PIN_REPEATED"
+#	fi
 
 	[ -z "$touch_file" ] ||
 		touch "$touch_file"
 
-	echo "D ${result[$password]}"
+	echo "D ${result}"
 	assuan_result $GPG_ERR_NO_ERROR
 }
 
 cmd_confirm()
 {
-	local ret=0 showmsg='' showcfm=1
+#	local ret=0 showmsg='' showcfm=1
+#
+#	if [ "$1" = '--one-button' ]; then
+#		shift
+#		showmsg=1
+#		showcfm=
+#	fi
+#
+#	yad \
+#		--splash \
+#		--no-markup \
+#		--title="${title:-$def_title}" \
+#		--text="${1:-${desc:-$def_desc}}" \
+#		${showmsg:+--button="${labelok:-$def_labelok}:0"} \
+#		${showcfm:+${error:+--field="$error:LBL"}} \
+#		--timeout="${timeout:-0}" \
+#		< /dev/null ||
+#		ret=$?
+#
+#	set_error='' error=''
+#
+#	case "$ret" in
+#		0)  assuan_result $GPG_ERR_NO_ERROR ;;
+#		1)  assuan_result $GPG_ERR_CANCELED ;;
+#		70) assuan_result $GPG_ERR_TIMEOUT ;;
+#		*)  assuan_result $GPG_ERR_NOT_CONFIRMED ;;
+#	esac
 
-	if [ "$1" = '--one-button' ]; then
-		shift
-		showmsg=1
-		showcfm=
-	fi
-
-	yad \
-		--splash \
-		--no-markup \
-		--title="${title:-$def_title}" \
-		--text="${1:-${desc:-$def_desc}}" \
-		${showmsg:+--button="${labelok:-$def_labelok}:0"} \
-		${showcfm:+${error:+--field="$error:LBL"}} \
-		--timeout="${timeout:-0}" \
-		< /dev/null ||
-		ret=$?
-
-	set_error='' error=''
-
-	case "$ret" in
-		0)  assuan_result $GPG_ERR_NO_ERROR ;;
-		1)  assuan_result $GPG_ERR_CANCELED ;;
-		70) assuan_result $GPG_ERR_TIMEOUT ;;
-		*)  assuan_result $GPG_ERR_NOT_CONFIRMED ;;
-	esac
+  # TODO implement confirm
+  assuan_result $GPG_ERR_NOT_CONFIRMED
 }
 
 echo "OK Your orders please"
@@ -205,7 +206,7 @@ while :; do
 	read -r cmd args 2>/dev/null ||
 		continue
 
-	#echo >&2 "$cmd: $args"
+	echo >&2 "$cmd: $args"
 
 	case "$cmd" in
 		BYE)
