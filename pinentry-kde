@@ -112,32 +112,36 @@ cmd_getpin()
 {
 	local ret=0 result output password=1
 
-  # Try to get pin from secret-tool
-  result="$(secret-tool lookup password pinentry-kde-pin || echo "")"
+  # Try to parse GPG description.
+  number="$(echo "${desc:-$def_desc}" | sed 's/%0A/\n/g'|grep Number|cut -d":" -f2|tr -d ' ')"
+
+  pin_entered=0
+  result=""
+  if [ "$number" != "" ]
+  then
+    # Try to get pin from secret-tool
+    result="$(secret-tool lookup password "pinentry-kde-pin-$number" || echo "")"
+    if [ "$result" == "" ]
+    then
+      echo >&2 "No PIN found in the keyring for card number $number"
+    fi
+  fi
+
   if [ "$result" == "" ]
   then
-    echo >&2 "No PIN found in the keyring"
-      result="$(kdialog --password "${title:-$def_title}")"
+    result="$(kdialog --password "${desc:-$def_desc}" --title "${title:-$def_title}")"
 
-    	set_error='' error=''
+    set_error='' error=''
 
-    	if [ "$ret" != "0" ]
-    	then
-    		assuan_result $GPG_ERR_CANCELED
-    		return 0
-      fi
+    if [ "$ret" != "0" ]
+    then
+      assuan_result $GPG_ERR_CANCELED
+      return 0
+    fi
 
-      # TODO Implement repeat logic
-      #	if [ -n "${set_repeat-}" ]; then
-      #		set_repeat='' repeat=''
-      #
-      #		if [ "${result[$password]}" != "${result[$repeatpassword]}" ]; then
-      #			cmd_confirm --one-button "${repeaterror:-Error: Passwords did not match.}"
-      #			assuan_result $GPG_ERR_NOT_CONFIRMED
-      #			return
-      #		fi
-      #		echo "S PIN_REPEATED"
-      #	fi
+    pin_entered=1
+
+    # TODO Implement repeat logic
   fi
 
 	[ -z "$touch_file" ] ||
@@ -145,8 +149,15 @@ cmd_getpin()
 
 	echo "D ${result}"
 
-	# Store pin with secret-tool
-	echo "${result}" | secret-tool store --label='pinentry-kde' password pinentry-kde-pin
+  if [ $pin_entered -eq 1 ] && [ "$number" != "" ]
+  then
+    if kdialog --yesno "Do you want to store pin in kwallet?"
+    then
+      # Store pin with secret-tool
+      key="pinentry-kde-pin-$number"
+      echo "${result}" | secret-tool store password --label "$key" "$key"
+    fi
+  fi
 
 	assuan_result $GPG_ERR_NO_ERROR
 }
@@ -167,7 +178,7 @@ while :; do
 
 	case "$cmd" in
 		BYE)
-			echo "OK closing connection"
+			echo >&2 "OK closing connection"
 			exit 0
 			;;
 		GETPIN)         cmd_getpin ;;
